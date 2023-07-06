@@ -6,6 +6,7 @@ import (
 )
 
 func main() {
-	fmt.Println("Test")
-	fmt.Println(muonengine.Test())
+	var torr, _ = muonengine.Open("file.torrent")
+
+	fmt.Println(torr.Name)
 }
