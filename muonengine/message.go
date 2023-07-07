@@ -2,6 +2,7 @@ package muonengine
 
 import (
 	"encoding/binary"
+	"fmt"
 	"io"
 )
 
@@ -77,6 +78,39 @@ func FormatHave(index int) *Message {
 	return &Message{ID: MsgHave, Data: data}
 }
 
+func ParsePiece(index int, buf []byte, msg *Message) (int, error) {
+	if msg.ID != MsgPiece {
+		return 0, fmt.Errorf("Expected PIECE (ID %d), got ID %d", MsgPiece, msg.ID)
+	}
+	if len(msg.Data) < 8 {
+		return 0, fmt.Errorf("Data too short. %d < 8", len(msg.Data))
+	}
+	parsedIndex := int(binary.BigEndian.Uint32(msg.Data[0:4]))
+	if parsedIndex != index {
+		return 0, fmt.Errorf("Expected index %d, got %d", index, parsedIndex)
+	}
+	begin := int(binary.BigEndian.Uint32(msg.Data[4:8]))
+	if begin >= len(buf) {
+		return 0, fmt.Errorf("Begin offset too high. %d >= %d", begin, len(buf))
+	}
+	data := msg.Data[8:]
+	if begin+len(data) > len(buf) {
+		return 0, fmt.Errorf("Data too long [%d] for offset %d with length %d", len(data), begin, len(buf))
+	}
+	copy(buf[begin:], data)
+	return len(data), nil
+}
+
+func ParseHave(msg *Message) (int, error) {
+	if msg.ID != MsgHave {
+		return 0, fmt.Errorf("Expected to have (ID %d), got ID %d", MsgHave, msg.ID)
+	}
+	if len(msg.Data) != 4 {
+		return 0, fmt.Errorf("Expected payload length 4, got length %d", len(msg.Data))
+	}
+	index := int(binary.BigEndian.Uint32(msg.Data))
+	return index, nil
+}
 
 type Bitfield []byte
 
@@ -91,3 +125,5 @@ func (bf Bitfield) SetPiece(index int) {
 	offset := index % 8
 	bf[byteIndex] |= 1 << (7 - offset)
 }
+
+

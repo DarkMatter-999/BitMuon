@@ -42,6 +42,5 @@ func recvBitField(conn net.Conn) (Bitfield, error) {
 	if msg.ID != MsgBitfield {
 		return nil, fmt.Errorf("Expected bitfield but got ID %d", msg.ID)
 	}
-
 	return msg.Data, nil
 }

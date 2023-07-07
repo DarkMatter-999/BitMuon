@@ -6,13 +6,36 @@ import (
 	"time"
 )
 
+const MAX_BLOCK_SIZE = 16384
+const MAX_BACK_LOG = 5
+
 type downloadClient struct {
 	Conn     net.Conn
 	Choked   bool
-	Bitfield []byte
+	Bitfield Bitfield
 	peer     Peer
 	infoHash [20]byte
 	PeerID   [20]byte
+}
+
+type pieceWork struct {
+	index  int
+	hash   [20]byte
+	length int
+}
+
+type pieceResult struct {
+	index int
+	buf   []byte
+}
+
+type pieceStatus struct {
+	index      int
+	client     *downloadClient
+	buf        []byte
+	downloaded int
+	requested  int
+	backlog    int
 }
 
 func newDownloadClient(peer Peer, peerID, infoHash [20]byte) (*downloadClient, error){
@@ -79,14 +102,35 @@ func (c *downloadClient) SendRequest(index, begin, length int) error {
 	return err
 }
 
+func (t *p2pTorrent) getPieceBounds(index int) (int, int) {
+	begin := index * t.PieceLength
+	end := begin + t.PieceLength
+	if end > t.Length {
+		end = t.Length
+	}
+	return begin, end
+}
+
+func (t *p2pTorrent) getPieceSize(index int) int {
+	being, end := t.getPieceBounds(index)
+	return end - being
+}
+
 func startDownloadManager(torr *p2pTorrent) {
-	ph := torr.PieceHashes
+	workQueue := make(chan *pieceWork, len(torr.PieceHashes))
+	workResult := make(chan *pieceResult)
+
+	for idx, hash := range torr.PieceHashes {
+		length := torr.getPieceSize(idx)
+		workQueue <- &pieceWork{idx, hash, length}
+	}
+
 	for _, peer := range torr.Peers {
-		torr.downloadWorker(peer, ph[0])
+		torr.downloadWorker(peer, workQueue, workResult)
 	}
 }
 
-func (t *p2pTorrent) downloadWorker(peer Peer, ph [20]byte) {
+func (t *p2pTorrent) downloadWorker(peer Peer, workQueue chan *pieceWork, workResult chan *pieceResult) {
 	c, err := newDownloadClient(peer, t.PeerID, t.InfoHash)
 	if err != nil {
 		fmt.Printf("Could not handshake with %s. Disconnecting\n", peer.IP)
@@ -98,6 +142,86 @@ func (t *p2pTorrent) downloadWorker(peer Peer, ph [20]byte) {
 	c.SendUnchoke()
 	c.SendInterested()
 
-	fmt.Println(ph)
+	for pw := range workQueue {
+		if !c.Bitfield.HasPiece(pw.index) {
+			workQueue <- pw
+			continue
+		}
+
+		buf, err := downloadPiece(c, pw)
+		if err != nil {
+			workQueue <- pw
+			return
+		}
+
+		fmt.Println(buf[:10])
+	}
+}
+
+func (state *pieceStatus) readMessage() error {
+	msg, err := state.client.Read()
+	if err != nil {
+		return err
+	}
+
+	// keep-alive
+	if msg == nil { 
+		return nil
+	}
+
+	switch msg.ID {
+	case MsgUnchoke:
+		state.client.Choked = false
+	case MsgChoke:
+		state.client.Choked = true
+	case MsgHave:
+		index, err := ParseHave(msg)
+		if err != nil {
+			return err
+		}
+		state.client.Bitfield.SetPiece(index)
+	case MsgPiece:
+		n, err := ParsePiece(state.index, state.buf, msg)
+		if err != nil {
+			return err
+		}
+		state.downloaded += n
+		state.backlog--
+	}
+	return nil
+}
+
+func downloadPiece(c *downloadClient, pw *pieceWork) ([]byte, error) {
+	state := pieceStatus{
+		index:  pw.index,
+		client: c,
+		buf:    make([]byte, pw.length),
+	}
+
+	c.Conn.SetDeadline(time.Now().Add(30 * time.Second))
+	defer c.Conn.SetDeadline(time.Time{})
+
+	for state.downloaded < pw.length {
+		if !state.client.Choked {
+			for state.backlog < MAX_BACK_LOG && state.requested < pw.length {
+				blockSize := MAX_BLOCK_SIZE
+				if pw.length - state.requested < blockSize {
+					blockSize = pw.length - state.requested
+				}
+
+				err := c.SendRequest(pw.index, state.requested, blockSize)
+				if err != nil {
+					return nil, err
+				}
+				state.backlog++
+				state.requested += blockSize
+			}
+		}
+		err := state.readMessage()
+		if err != nil {
+			return nil, err
+		}
+	}
+	return state.buf, nil
 }
 
