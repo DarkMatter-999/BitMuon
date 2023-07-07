@@ -1,8 +1,11 @@
 package muonengine
 
 import (
+	"bytes"
+	"crypto/sha1"
 	"fmt"
 	"net"
+	"runtime"
 	"time"
 )
 
@@ -116,6 +119,14 @@ func (t *p2pTorrent) getPieceSize(index int) int {
 	return end - being
 }
 
+func checkShaSum(pw *pieceWork, buf []byte) error {
+	hash := sha1.Sum(buf)
+	if !bytes.Equal(hash[:], pw.hash[:]) {
+		return fmt.Errorf("Index %d failed integrity check", pw.index)
+	}
+	return nil
+}
+
 func startDownloadManager(torr *p2pTorrent) {
 	workQueue := make(chan *pieceWork, len(torr.PieceHashes))
 	workResult := make(chan *pieceResult)
@@ -126,8 +137,24 @@ func startDownloadManager(torr *p2pTorrent) {
 	}
 
 	for _, peer := range torr.Peers {
-		torr.downloadWorker(peer, workQueue, workResult)
+		go torr.downloadWorker(peer, workQueue, workResult)
 	}
+
+	buf := make([]byte, torr.Length)
+	donePieces := 0
+	for donePieces < len(torr.PieceHashes) {
+		res := <- workResult
+		begin, end := torr.getPieceBounds(res.index)
+		copy(buf[begin:end], res.buf)
+		donePieces++
+
+		percent := float64(donePieces) / float64(len(torr.PieceHashes)) * 100
+		numWorkers := runtime.NumGoroutine() - 1
+		fmt.Printf("(%0.2f%%) Downloaded piece #%d from %d peers\n", percent, res.index, numWorkers)
+	}
+	close(workQueue)
+
+	// return buf, nil
 }
 
 func (t *p2pTorrent) downloadWorker(peer Peer, workQueue chan *pieceWork, workResult chan *pieceResult) {
@@ -154,7 +181,14 @@ func (t *p2pTorrent) downloadWorker(peer Peer, workQueue chan *pieceWork, workRe
 			return
 		}
 
-		fmt.Println(buf[:10])
+		err = checkShaSum(pw, buf)
+		if err != nil {
+			workQueue <- pw
+			continue
+		}
+
+		c.SendHave(pw.index)
+		workResult <- &pieceResult{pw.index, buf}
 	}
 }
 
