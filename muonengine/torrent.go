@@ -64,7 +64,7 @@ func Openfile(r io.Reader) (*bencodeTorrent, error) {
 	}
 }
 
-func Open(s string) (*Torrent, error) {
+func Open(s string) (*TorrentFile, error) {
 	file, err := os.Open(s)
 	if err != nil {
 		return nil, err
@@ -84,7 +84,7 @@ func Open(s string) (*Torrent, error) {
 
 }
 
-type Torrent struct {
+type TorrentFile struct {
 	Announce    string
 	InfoHash    [20]byte
 	PieceHash   [][20]byte
@@ -93,18 +93,18 @@ type Torrent struct {
 	Name        string
 }
 
-func becToTorrent(beTorrent *bencodeTorrent) (Torrent, error) {
+func becToTorrent(beTorrent *bencodeTorrent) (TorrentFile, error) {
 	infoHash, err := beTorrent.Info.hash()
 	if err != nil {
-		return Torrent{}, err
+		return TorrentFile{}, err
 	}
 
 	pieceHash, err2 := beTorrent.Info.splitPieceHashes()
 	if err2 != nil {
-		return Torrent{}, err
+		return TorrentFile{}, err
 	}
 
-	t := Torrent{
+	t := TorrentFile{
 		Announce:    beTorrent.Announce,
 		InfoHash:    infoHash,
 		PieceHash:   pieceHash,
