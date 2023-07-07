@@ -3,6 +3,7 @@ package muonengine
 import (
 	"encoding/binary"
 	"fmt"
+	"log"
 	"math/rand"
 	"net"
 	"net/http"
@@ -78,7 +79,7 @@ func Download(torr *TorrentFile) (*p2pTorrent, error) {
 }
 
 func requestPeer (url string) ([]Peer, error){
-	fmt.Println(url)
+	log.Printf("Using URL: %s", url)
 	res, err := http.Get(url)
 	if err != nil {
 		return nil, err
