@@ -18,39 +18,30 @@ type p2pTorrent struct {
 	Name        string
 }
 
-type p2pClient struct {
-	Conn     net.Conn
-	Choked   bool
-	Bitfield []byte
-	peer     Peer
-	infoHash [20]byte
-	PeerID   [20]byte
-}
-
 func (t *TorrentFile) DownloadTorrent()  error {
 	torr, err := Download(t)
 	if err != nil {
 		return err
 	}
-
-	for i:=0; i < len(torr.Peers); i++ {
-		conn, err := net.DialTimeout("tcp", torr.Peers[i].String(), DELAY * time.Second)
-		if err != nil {
-			fmt.Println(err)
-			continue
-		}
-
-		defer conn.SetDeadline(time.Time{})
-		res, err := completeHandshake(conn, torr.InfoHash, torr.PeerID)
-		if err != nil {
-			fmt.Println(err)
-			conn.Close()
-			continue
-		}
-		fmt.Println(*res)
-	}
+	
+	startDownloadManager(torr)	
 
 	return nil
 
 }
 
+func recvBitField(conn net.Conn) (Bitfield, error) {
+	conn.SetDeadline(time.Now().Add(5 * time.Second))
+	defer conn.SetDeadline(time.Time{}) 
+
+	msg, err := MessageDeserialize(conn)
+	if err != nil {
+		return nil, err
+	}
+
+	if msg.ID != MsgBitfield {
+		return nil, fmt.Errorf("Expected bitfield but got ID %d", msg.ID)
+	}
+
+	return msg.Data, nil
+}

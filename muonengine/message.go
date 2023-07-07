@@ -63,6 +63,20 @@ func MessageDeserialize(r io.Reader) (*Message, error) {
 	return &m, nil
 }
 
+func FormatRequest(index, begin, length int) *Message {
+	data := make([]byte, 12)
+	binary.BigEndian.PutUint32(data[0:4], uint32(index))
+	binary.BigEndian.PutUint32(data[4:8], uint32(begin))
+	binary.BigEndian.PutUint32(data[8:12], uint32(length))
+	return &Message{ID: MsgRequest, Data: data}
+}
+
+func FormatHave(index int) *Message {
+	data := make([]byte, 4)
+	binary.BigEndian.PutUint32(data, uint32(index))
+	return &Message{ID: MsgHave, Data: data}
+}
+
 
 type Bitfield []byte
 
