@@ -26,6 +26,8 @@ func main() {
 
 	err = torr.DownloadTorrent()
 	if err != nil {
+		log.Fatal(err)
 		return
 	}
+
 }

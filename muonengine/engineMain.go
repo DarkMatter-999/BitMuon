@@ -24,3 +24,12 @@ func (t *TorrentFile) BuildTrackerURL(peerID [20]byte, port uint16) (string, err
 	base.RawQuery = params.Encode()
 	return base.String(), nil
 }
+
+func (t *TorrentFile) GetHostPortUDP() (*url.URL, error) {
+	host, err := url.ParseRequestURI(t.Announce)
+	if err != nil {
+		return nil, err
+	}
+
+	return host, nil
+}
