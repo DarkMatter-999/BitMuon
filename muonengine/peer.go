@@ -1,6 +1,7 @@
 package muonengine
 
 import (
+	"bytes"
 	"encoding/binary"
 	"fmt"
 	"log"
@@ -228,10 +229,12 @@ func requestPeerUDP(t *TorrentFile, peerId [20]byte) ([]Peer, error) {
 		offset := 20
 		peers := make([]Peer, 0)
 		for offset+6 < len(response) {
-			ip := net.IP(response[offset : offset+4])
-			port := binary.BigEndian.Uint16(response[offset+4 : offset+6])
-			peer := Peer{IP: ip, Port: port}
-			peers = append(peers, peer)
+			if !bytes.Equal(response[offset:offset+4], []byte{0,0,0,0}) {
+				ip := net.IP(response[offset : offset+4])
+				port := binary.BigEndian.Uint16(response[offset+4 : offset+6])
+				peer := Peer{IP: ip, Port: port}
+				peers = append(peers, peer)
+			}
 			offset += 6
 		}
 
