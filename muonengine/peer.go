@@ -222,8 +222,6 @@ func requestPeerUDP(t *TorrentFile, peerId [20]byte) ([]Peer, error) {
 		return nil, err
 	}
 
-	// peers := []Peer
-
 	_ = binary.BigEndian.Uint32(response[0:4]) // Recieved Action
 	receivedTransactionID = binary.BigEndian.Uint32(response[4:8])
 	if receivedTransactionID == transactionID {

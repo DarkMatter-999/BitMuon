@@ -12,11 +12,19 @@ func main() {
 		fmt.Println("Usage: bitmuon <file.torrent>")
 		return
 	}
-	var torr, _ = muonengine.Open(os.Args[1])
+
+	torr, err := muonengine.Open(os.Args[1])
+	if err != nil {
+		log.Fatal(err)
+		return
+	}
+
 	fmt.Println("Downloading " + torr.Name)
+	fmt.Printf("%v MB\n", torr.Length / (1024 * 1024))
 	file, err := os.Create(torr.Name + "logFile.txt")
 	if err != nil {
 		log.Fatal(err)
+		return
 	}
 	defer file.Close()
 

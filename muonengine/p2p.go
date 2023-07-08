@@ -3,6 +3,7 @@ package muonengine
 import (
 	"fmt"
 	"net"
+	"os"
 	"time"
 )
 
@@ -18,13 +19,26 @@ type p2pTorrent struct {
 	Name        string
 }
 
-func (t *TorrentFile) DownloadTorrent()  error {
+func (t *TorrentFile) DownloadTorrent() error {
 	torr, err := Download(t)
 	if err != nil {
 		return err
 	}
 	
-	startDownloadManager(torr)	
+	buf, err := startDownloadManager(torr)
+	if err != nil {
+		return err
+	}
+	outFile, err := os.Create(t.Name)
+	if err != nil {
+		return err
+	}
+	defer outFile.Close()
+	
+	_, err = outFile.Write(buf)
+	if err != nil {
+		return err
+	}
 
 	return nil
 
