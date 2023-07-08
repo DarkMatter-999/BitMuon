@@ -3,7 +3,6 @@ package muonengine
 import (
 	"fmt"
 	"net"
-	"os"
 	"time"
 )
 
@@ -25,17 +24,7 @@ func (t *TorrentFile) DownloadTorrent() error {
 		return err
 	}
 	
-	buf, err := startDownloadManager(torr)
-	if err != nil {
-		return err
-	}
-	outFile, err := os.Create(t.Name)
-	if err != nil {
-		return err
-	}
-	defer outFile.Close()
-	
-	_, err = outFile.Write(buf)
+	err = startDownloadManager(torr)
 	if err != nil {
 		return err
 	}

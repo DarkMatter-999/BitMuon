@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"log"
 	"net"
+	"os"
 	"runtime"
 	"time"
 )
@@ -128,7 +129,7 @@ func checkShaSum(pw *pieceWork, buf []byte) error {
 	return nil
 }
 
-func startDownloadManager(torr *p2pTorrent) ([]byte, error) {
+func startDownloadManager(torr *p2pTorrent) (error) {
 	workQueue := make(chan *pieceWork, len(torr.PieceHashes))
 	workResult := make(chan *pieceResult)
 
@@ -141,21 +142,40 @@ func startDownloadManager(torr *p2pTorrent) ([]byte, error) {
 		go torr.downloadWorker(peer, workQueue, workResult)
 	}
 
-	buf := make([]byte, torr.Length)
+	outFile, err := os.Create(torr.Name)
+	if err != nil {
+		return err
+	}
+	defer outFile.Close()
+	
+	buf := make([]byte, torr.PieceLength)
 	donePieces := 0
 	for donePieces < len(torr.PieceHashes) {
 		res := <- workResult
-		begin, end := torr.getPieceBounds(res.index)
-		copy(buf[begin:end], res.buf)
-		donePieces++
+		begin, _ := torr.getPieceBounds(res.index)
+		copy(buf[:], res.buf)
+		outFile.Seek(int64(begin), 0)	
+		_, err = outFile.Write(buf)
+		if err != nil {
+			return err
+		}
 
+
+		if donePieces % 10 == 0 {
+			outFile.Sync()
+		}
+		
+		donePieces++
 		percent := float64(donePieces) / float64(len(torr.PieceHashes)) * 100
 		numWorkers := runtime.NumGoroutine() - 1
 		fmt.Printf("(%0.2f%%) Downloaded piece #%d from %d peers\n", percent, res.index, numWorkers)
 	}
 	close(workQueue)
+	close(workResult)
+	log.Printf("downloaded %v pieces", donePieces)
+	outFile.Close()
 
-	return buf, nil
+	return nil
 }
 
 func (t *p2pTorrent) downloadWorker(peer Peer, workQueue chan *pieceWork, workResult chan *pieceResult) {
