@@ -160,7 +160,6 @@ func startDownloadManager(torr *p2pTorrent) (error) {
 			return err
 		}
 
-
 		if donePieces % 10 == 0 {
 			outFile.Sync()
 		}
@@ -169,7 +168,12 @@ func startDownloadManager(torr *p2pTorrent) (error) {
 		percent := float64(donePieces) / float64(len(torr.PieceHashes)) * 100
 		numWorkers := runtime.NumGoroutine() - 1
 		fmt.Printf("(%0.2f%%) Downloaded piece #%d from %d peers\n", percent, res.index, numWorkers)
+	
+		if numWorkers == 0 {
+			break
+		}
 	}
+
 	close(workQueue)
 	close(workResult)
 	log.Printf("downloaded %v pieces", donePieces)

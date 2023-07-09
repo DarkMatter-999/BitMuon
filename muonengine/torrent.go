@@ -154,7 +154,7 @@ func becToTorrent(beTorrent *bencodeTorrent) (TorrentFile, error) {
 		infohash, err := v1info.hash_v1()
 		if err != nil {
 			return TorrentFile{}, err
-		}
+	}
 		infoHash = infohash
 	} else {
 		v2info := beTorrent.becTo_v2()

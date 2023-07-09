@@ -63,11 +63,13 @@ func Download(torr *TorrentFile) (*p2pTorrent, error) {
 		if announce[:4] == "http" {
 			url, err := torr.BuildTrackerURL(peerId, PORT, announce)
 			if err != nil {
+				log.Println(err)
 				continue
 			}
 
 			newpeers, err := requestPeer(url)
 			if err != nil {
+				log.Println(err)
 				continue
 			}
 
@@ -76,6 +78,7 @@ func Download(torr *TorrentFile) (*p2pTorrent, error) {
 		} else if announce[:3] == "udp" {
 			newpeers, err := requestPeerUDP(torr, peerId, announce)
 			if err != nil {
+				log.Println(err)
 				continue
 			}
 
@@ -125,19 +128,21 @@ func requestPeer (url string) ([]Peer, error){
 }
 
 func requestPeerUDP(t *TorrentFile, peerId [20]byte, announceUrl string) ([]Peer, error) {
+	log.Printf("Using URL: %s", announceUrl)
 	url, err := t.GetHostPortUDP(announceUrl)
 	if err != nil {
 		return nil, err
 	}
 
-	timeout := 10 * time.Second
-
-	sock, err := net.DialTimeout("udp", url.Host, timeout)
+	sock, err := net.DialTimeout("udp", url.Host, 3 * time.Second)
 	if err != nil {
 		return nil, err
 	}
 
 	defer sock.Close()
+
+	sock.SetDeadline(time.Now().Add(3 * time.Second))
+	sock.SetDeadline(time.Time{})
 	
 	transactionID := rand.Uint32()
 
@@ -155,13 +160,17 @@ func requestPeerUDP(t *TorrentFile, peerId [20]byte, announceUrl string) ([]Peer
 		sock.Close()
 		return nil, err
 	}
+	sock.SetDeadline(time.Now().Add(3 * time.Second))
 
 	response := make([]byte, 16)
+
 	_, err = sock.Read(response)
 	if err != nil {
 		sock.Close()
 		return nil, err
 	}
+	sock.SetDeadline(time.Now().Add(3 * time.Second))
+	sock.SetDeadline(time.Time{})
 
 	action = binary.BigEndian.Uint32(response[0:4])
 	receivedTransactionID := binary.BigEndian.Uint32(response[4:8])
