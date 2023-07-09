@@ -5,6 +5,7 @@ import (
 	"crypto/sha1"
 	"fmt"
 	"io"
+	"log"
 	"os"
 
 	"github.com/jackpal/bencode-go"
@@ -20,18 +21,63 @@ type bencodeInfo struct {
 	PieceLength int    `bencode:"piece length"`
 	Length      int    `bencode:"length"`
 	Name        string `bencode:"name"`
+	Files		[]bencodeFiles `bencode:"files"`
 }
 
 type bencodeTorrent struct {
 	Announce		string `bencode:"announce"`
 	AnnounceList	[][]string `bencode:"announce-list"`
 	Info			bencodeInfo `bencode:"info"`
-	Files			[]bencodeFiles `bencode:"files"`
 }
 
-func (i *bencodeInfo) hash() ([20]byte, error) {
+type bencodeInfo_v1 struct {
+	Pieces      string `bencode:"pieces"`
+	PieceLength int    `bencode:"piece length"`
+	Length      int    `bencode:"length"`
+	Name        string `bencode:"name"`
+}
+
+type bencodeInfo_v2 struct {
+	Pieces      string			`bencode:"pieces"`
+	PieceLength int				`bencode:"piece length"`
+	Files		[]bencodeFiles	`bencode:"files"`
+	Name		string			`bencode:"name"`
+}
+
+func (t *bencodeTorrent) becTo_v1() (i bencodeInfo_v1) {
+	v1info := bencodeInfo_v1 {
+		Pieces: t.Info.Pieces,
+		PieceLength: t.Info.PieceLength,
+		Length: t.Info.Length,
+		Name: t.Info.Name,
+	}
+	return v1info
+}
+
+func (t *bencodeTorrent) becTo_v2() (i bencodeInfo_v2) {
+	v2info := bencodeInfo_v2 {
+		Pieces: t.Info.Pieces,
+		PieceLength: t.Info.PieceLength,
+		Files: t.Info.Files,
+		Name: t.Info.Name,
+	}
+	return v2info
+}
+
+func (i *bencodeInfo_v1) hash_v1() ([20]byte, error) {
 	var buf bytes.Buffer
 	err := bencode.Marshal(&buf, *i)
+	if err != nil {
+		return [20]byte{}, err
+	}
+
+	h := sha1.Sum(buf.Bytes())
+	return h, nil
+}
+
+func (i *bencodeInfo_v2) hash_v2() ([20]byte, error) {
+	var buf bytes.Buffer
+	err := bencode.Marshal(&buf, *i) 
 	if err != nil {
 		return [20]byte{}, err
 	}
@@ -101,13 +147,31 @@ type TorrentFile struct {
 }
 
 func becToTorrent(beTorrent *bencodeTorrent) (TorrentFile, error) {
-	infoHash, err := beTorrent.Info.hash()
-	if err != nil {
-		return TorrentFile{}, err
+	var infoHash [20]byte
+	length := beTorrent.Info.Length
+	if len(beTorrent.Info.Files) == 0 {
+		v1info := beTorrent.becTo_v1()
+		infohash, err := v1info.hash_v1()
+		if err != nil {
+			return TorrentFile{}, err
+		}
+		infoHash = infohash
+	} else {
+		v2info := beTorrent.becTo_v2()
+		infohash, err := v2info.hash_v2()
+		if err != nil {
+			return TorrentFile{}, err
+		}
+		infoHash = infohash
+		for _, file := range beTorrent.Info.Files {
+			length += file.Length
+		}
 	}
 
-	pieceHash, err2 := beTorrent.Info.splitPieceHashes()
-	if err2 != nil {
+	log.Printf("Got infoHash: %x", infoHash)
+
+	pieceHash, err := beTorrent.Info.splitPieceHashes()
+	if err != nil {
 		return TorrentFile{}, err
 	}
 
@@ -122,7 +186,7 @@ func becToTorrent(beTorrent *bencodeTorrent) (TorrentFile, error) {
 		InfoHash:    infoHash,
 		PieceHash:   pieceHash,
 		PieceLength: beTorrent.Info.PieceLength,
-		Length:      beTorrent.Info.Length,
+		Length:      length,
 		Name:        beTorrent.Info.Name,
 	}
 

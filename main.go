@@ -13,15 +13,7 @@ func main() {
 		return
 	}
 
-	torr, err := muonengine.Open(os.Args[1])
-	if err != nil {
-		log.Fatal(err)
-		return
-	}
-
-	fmt.Println("Downloading " + torr.Name)
-	fmt.Printf("%v MB\n", torr.Length / (1024 * 1024))
-	file, err := os.Create(torr.Name + "logFile.txt")
+	file, err := os.Create(os.Args[1] + "logFile.txt")
 	if err != nil {
 		log.Fatal(err)
 		return
@@ -31,6 +23,15 @@ func main() {
 	log.SetOutput(file)
 	log.SetPrefix("LOG: ")
 	log.SetFlags(log.Ldate | log.Ltime)
+
+	torr, err := muonengine.Open(os.Args[1])
+	if err != nil {
+		log.Fatal(err)
+		return
+	}
+
+	fmt.Println("Downloading " + torr.Name)
+	fmt.Printf("%v MB\n", torr.Length / (1024 * 1024))
 
 	err = torr.DownloadTorrent()
 	if err != nil {

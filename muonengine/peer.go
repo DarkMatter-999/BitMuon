@@ -9,6 +9,7 @@ import (
 	"net"
 	"net/http"
 	"strconv"
+	"time"
 
 	"github.com/jackpal/bencode-go"
 )
@@ -56,6 +57,9 @@ func Download(torr *TorrentFile) (*p2pTorrent, error) {
 	}
 
 	for _, announce := range torr.Announce {
+		log.Printf("Trying Tracker: %v", announce)
+		fmt.Printf("Trying Tracker: %v \n", announce)
+
 		if announce[:4] == "http" {
 			url, err := torr.BuildTrackerURL(peerId, PORT, announce)
 			if err != nil {
@@ -126,7 +130,9 @@ func requestPeerUDP(t *TorrentFile, peerId [20]byte, announceUrl string) ([]Peer
 		return nil, err
 	}
 
-	sock, err := net.Dial("udp", url.Host)
+	timeout := 10 * time.Second
+
+	sock, err := net.DialTimeout("udp", url.Host, timeout)
 	if err != nil {
 		return nil, err
 	}
