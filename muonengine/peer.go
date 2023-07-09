@@ -49,56 +49,48 @@ func getPeers(peersBin []byte) ([]Peer, error) {
 
 func Download(torr *TorrentFile) (*p2pTorrent, error) {	
 	var peerId [20]byte;
-
+	var peers []Peer
 	_, err := rand.Read(peerId[:])
 	if err != nil {
 		return nil, err
 	}
 
-	if torr.Announce[:4] == "http" {
-		url, err := torr.BuildTrackerURL(peerId, PORT)
-		if err != nil {
-			return nil, err
-		}
+	for _, announce := range torr.Announce {
+		if announce[:4] == "http" {
+			url, err := torr.BuildTrackerURL(peerId, PORT, announce)
+			if err != nil {
+				continue
+			}
 
-		peers, err := requestPeer(url)
-		if err != nil {
-			return nil, err
-		}
+			newpeers, err := requestPeer(url)
+			if err != nil {
+				continue
+			}
 
-		p2ptorr := p2pTorrent{
-			Peers: peers,
-			PeerID: peerId,
-			InfoHash: torr.InfoHash,
-			PieceHashes: torr.PieceHash,
-			PieceLength: torr.PieceLength,
-			Length: torr.Length,
-			Name: torr.Name,
-		}
+			peers = append(peers, newpeers...)
 
-		return &p2ptorr, nil
-	} else if torr.Announce[:3] == "udp" {
-		peers, err := requestPeerUDP(torr, peerId)
-		if err != nil {
-			return nil, err
-		}
+		} else if announce[:3] == "udp" {
+			newpeers, err := requestPeerUDP(torr, peerId, announce)
+			if err != nil {
+				continue
+			}
 
-		p2ptorr := p2pTorrent{
-			Peers: peers,
-			PeerID: peerId,
-			InfoHash: torr.InfoHash,
-			PieceHashes: torr.PieceHash,
-			PieceLength: torr.PieceLength,
-			Length: torr.Length,
-			Name: torr.Name,
+			peers = append(peers, newpeers...)
 		}
-		
-		return &p2ptorr, nil
 	}
 
-	log.Printf("Unknown protocol recieved %v", torr.Announce)
-	return nil, fmt.Errorf("Unknown protocol recieved %v", torr.Announce)
+	p2ptorr := p2pTorrent{
+		Peers: peers,
+		PeerID: peerId,
+		InfoHash: torr.InfoHash,
+		PieceHashes: torr.PieceHash,
+		PieceLength: torr.PieceLength,
+		Length: torr.Length,
+		Name: torr.Name,
+	}
+	log.Printf("Got peers : %v", peers)
 
+	return &p2ptorr, nil
 }
 
 func requestPeer (url string) ([]Peer, error){
@@ -128,8 +120,8 @@ func requestPeer (url string) ([]Peer, error){
 	return peers, err
 }
 
-func requestPeerUDP(t *TorrentFile, peerId [20]byte) ([]Peer, error) {
-	url, err := t.GetHostPortUDP()
+func requestPeerUDP(t *TorrentFile, peerId [20]byte, announceUrl string) ([]Peer, error) {
+	url, err := t.GetHostPortUDP(announceUrl)
 	if err != nil {
 		return nil, err
 	}
@@ -212,14 +204,14 @@ func requestPeerUDP(t *TorrentFile, peerId [20]byte) ([]Peer, error) {
 
 	_, err =	sock.Write(packet)
 	if err != nil {
-	sock.Close()
+		sock.Close()
 		return nil, err
 	}
 
 	response = make([]byte, 4096)
 	_, err = sock.Read(response)
 	if err != nil {
-	sock.Close()
+		sock.Close()
 		return nil, err
 	}
 
@@ -244,5 +236,5 @@ func requestPeerUDP(t *TorrentFile, peerId [20]byte) ([]Peer, error) {
 
 	sock.Close()
 
-	return nil, err
+	return nil, fmt.Errorf("Connection closed by %v", url)
 }

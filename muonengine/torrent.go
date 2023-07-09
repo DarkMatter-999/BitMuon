@@ -10,6 +10,11 @@ import (
 	"github.com/jackpal/bencode-go"
 )
 
+type bencodeFiles struct {
+	Length int      `bencode:"length"`
+	Path   []string `bencode:"path"`
+}
+
 type bencodeInfo struct {
 	Pieces      string `bencode:"pieces"`
 	PieceLength int    `bencode:"piece length"`
@@ -18,8 +23,10 @@ type bencodeInfo struct {
 }
 
 type bencodeTorrent struct {
-	Announce string
-	Info     bencodeInfo
+	Announce		string `bencode:"announce"`
+	AnnounceList	[][]string `bencode:"announce-list"`
+	Info			bencodeInfo `bencode:"info"`
+	Files			[]bencodeFiles `bencode:"files"`
 }
 
 func (i *bencodeInfo) hash() ([20]byte, error) {
@@ -85,7 +92,7 @@ func Open(s string) (*TorrentFile, error) {
 }
 
 type TorrentFile struct {
-	Announce    string
+	Announce    []string
 	InfoHash    [20]byte
 	PieceHash   [][20]byte
 	PieceLength int
@@ -104,8 +111,14 @@ func becToTorrent(beTorrent *bencodeTorrent) (TorrentFile, error) {
 		return TorrentFile{}, err
 	}
 
+	announceArray := []string{beTorrent.Announce}
+
+	for _, url := range beTorrent.AnnounceList {
+		announceArray = append(announceArray, url[0])
+	}
+
 	t := TorrentFile{
-		Announce:    beTorrent.Announce,
+		Announce:    announceArray,
 		InfoHash:    infoHash,
 		PieceHash:   pieceHash,
 		PieceLength: beTorrent.Info.PieceLength,

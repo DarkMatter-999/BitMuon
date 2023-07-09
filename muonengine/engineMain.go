@@ -7,8 +7,8 @@ import (
 	"strconv"
 )
 
-func (t *TorrentFile) BuildTrackerURL(peerID [20]byte, port uint16) (string, error) {
-	base, err := url.Parse(t.Announce)
+func (t *TorrentFile) BuildTrackerURL(peerID [20]byte, port uint16, announceUrl string) (string, error) {
+	base, err := url.Parse(announceUrl)
 	if err != nil {
 		return "", err
 	}
@@ -27,8 +27,8 @@ func (t *TorrentFile) BuildTrackerURL(peerID [20]byte, port uint16) (string, err
 	return base.String(), nil
 }
 
-func (t *TorrentFile) GetHostPortUDP() (*url.URL, error) {
-	host, err := url.ParseRequestURI(t.Announce)
+func (t *TorrentFile) GetHostPortUDP(announceUrl string) (*url.URL, error) {
+	host, err := url.ParseRequestURI(announceUrl)
 	if err != nil {
 		return nil, err
 	}
@@ -51,7 +51,7 @@ func ParseMagnetLink(magnetLink string) (*TorrentFile, error) {
 	}
 	copy(torrent.InfoHash[:], infoHash)
 
-	torrent.Announce = u.Query().Get("tr")
+	torrent.Announce = []string{u.Query().Get("tr")}
 	torrent.Name = u.Query().Get("dn")
 	torrent.PieceLength = 0 // Placeholder for the piece length
 	torrent.Length = 0      // Placeholder for the total length
