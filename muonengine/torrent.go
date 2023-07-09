@@ -144,6 +144,7 @@ type TorrentFile struct {
 	PieceLength int
 	Length      int
 	Name        string
+	Files		[]bencodeFiles
 }
 
 func becToTorrent(beTorrent *bencodeTorrent) (TorrentFile, error) {
@@ -188,6 +189,7 @@ func becToTorrent(beTorrent *bencodeTorrent) (TorrentFile, error) {
 		PieceLength: beTorrent.Info.PieceLength,
 		Length:      length,
 		Name:        beTorrent.Info.Name,
+		Files:		 beTorrent.Info.Files,
 	}
 
 	return t, nil

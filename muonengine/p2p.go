@@ -16,6 +16,7 @@ type p2pTorrent struct {
 	PieceLength int
 	Length      int
 	Name        string
+	Files       []bencodeFiles
 }
 
 func (t *TorrentFile) DownloadTorrent() error {

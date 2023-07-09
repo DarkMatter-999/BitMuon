@@ -94,6 +94,7 @@ func Download(torr *TorrentFile) (*p2pTorrent, error) {
 		PieceLength: torr.PieceLength,
 		Length: torr.Length,
 		Name: torr.Name,
+		Files: torr.Files,
 	}
 	log.Printf("Got peers : %v", peers)
 

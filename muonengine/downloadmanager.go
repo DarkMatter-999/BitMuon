@@ -130,9 +130,11 @@ func checkShaSum(pw *pieceWork, buf []byte) error {
 }
 
 func startDownloadManager(torr *p2pTorrent) (error) {
+	
 	workQueue := make(chan *pieceWork, len(torr.PieceHashes))
 	workResult := make(chan *pieceResult)
 
+	
 	for idx, hash := range torr.PieceHashes {
 		length := torr.getPieceSize(idx)
 		workQueue <- &pieceWork{idx, hash, length}
@@ -178,6 +180,68 @@ func startDownloadManager(torr *p2pTorrent) (error) {
 	close(workResult)
 	log.Printf("downloaded %v pieces", donePieces)
 	outFile.Close()
+	
+	if len(torr.Files) != 0 {
+		log.Printf("Saving Files")
+		fmt.Println("Saving Files")
+		outFile, err := os.Open(torr.Name)
+		if err != nil {
+			return err
+		}
+
+		filePos := 0
+		for _, file := range torr.Files {
+			_, err = outFile.Seek(int64(filePos), 0)
+			if err != nil {
+				log.Printf(err.Error())
+			}
+
+			partfile, err := os.Create(file.Path[0])
+			if err != nil {
+				return err
+			}
+
+			fmt.Printf("Saving %v ", file.Path[0])
+			log.Printf("Saving %v", file.Path[0])
+
+			buffer := make([]byte, MAX_BLOCK_SIZE)
+			readLen := 0
+			for readLen < file.Length {
+				readLen+=MAX_BLOCK_SIZE
+
+				_, err = outFile.Read(buffer)
+				if err != nil {
+					log.Printf(err.Error())
+					continue
+				}
+
+				if readLen > file.Length {
+					_, err = partfile.Write(buffer[:file.Length % MAX_BLOCK_SIZE])
+					if err != nil {
+						log.Printf(err.Error())
+						continue
+					}
+				} else {
+					_, err = partfile.Write(buffer[:])
+					if err != nil {
+						log.Printf(err.Error())
+						continue
+					}
+				}
+			}
+			filePos += file.Length
+			partfile.Close()
+
+			log.Printf("Saved %v ", file.Path[0])
+			fmt.Println("Done")
+		}
+
+		outFile.Close()
+		err = os.Remove(torr.Name)
+		if err != nil {
+			return err
+		}
+	}
 
 	return nil
 }
