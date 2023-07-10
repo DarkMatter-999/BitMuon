@@ -9,7 +9,7 @@ import (
 
 func main() {
 	if len(os.Args) != 2 {
-		fmt.Println("Usage: bitmuon <file.torrent>")
+		fmt.Println("Usage: bitmuon \"*.torrent\"")
 		return
 	}
 
